@@ -69,14 +69,14 @@ const ComparisonSummary = ({ comparison, onExportJson, onExportHtml, onExportPdf
         <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
           <div className="flex items-center gap-2 text-blue-700 text-sm">
             <Image className="h-4 w-4" />
-            <span className="font-medium">Mutual comparison shows:</span>
+            <span className="font-medium">Perfect Mutual Comparison:</span>
           </div>
           <div className="mt-2 text-sm text-blue-600">
-            <p>• Both documents highlight all differences</p>
-            <p>• Green: content added in modified document</p>
-            <p>• Red: content removed from original document</p>
-            <p>• Yellow: content modified between documents</p>
-            <p>• Placeholders show missing content with same dimensions</p>
+            <p>• <strong>Preserved Spacing:</strong> Both documents maintain identical layout structure</p>
+            <p>• <strong>Green Highlights:</strong> Content added in modified document (with placeholders in original)</p>
+            <p>• <strong>Red Highlights:</strong> Content removed from original document (with placeholders in modified)</p>
+            <p>• <strong>Yellow Highlights:</strong> Content modified between documents</p>
+            <p>• <strong>Equal Height:</strong> Placeholders reserve exact space of missing content</p>
           </div>
         </div>
       )}

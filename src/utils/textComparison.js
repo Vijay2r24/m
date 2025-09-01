@@ -127,91 +127,141 @@ const performLineMutualComparison = (leftLines, rightLines) => {
   const rightProcessed = [];
   let additions = 0, deletions = 0;
 
-  // Create alignment between lines
-  const maxLines = Math.max(leftLines.length, rightLines.length);
+  // Enhanced alignment algorithm for better mutual comparison
+  const alignment = createOptimalAlignment(leftLines, rightLines);
   
-  for (let i = 0; i < maxLines; i++) {
-    const leftLine = leftLines[i];
-    const rightLine = rightLines[i];
+  alignment.forEach(({ leftIndex, rightIndex, type }) => {
+    const leftLine = leftIndex !== null ? leftLines[leftIndex] : null;
+    const rightLine = rightIndex !== null ? rightLines[rightIndex] : null;
     
-    if (leftLine && rightLine) {
-      // Both lines exist - compare content
-      if (leftLine.isEmpty && rightLine.isEmpty) {
-        // Both empty - no highlighting
-        leftProcessed.push({ ...leftLine, highlight: 'none' });
-        rightProcessed.push({ ...rightLine, highlight: 'none' });
-      } else if (leftLine.isEmpty && !rightLine.isEmpty) {
-        // Left empty, right has content - show as addition
+    switch (type) {
+      case 'match':
+        if (areTextsEqual(leftLine.text, rightLine.text)) {
+          leftProcessed.push({ ...leftLine, highlight: 'none' });
+          rightProcessed.push({ ...rightLine, highlight: 'none' });
+        } else {
+          const { leftHighlighted, rightHighlighted } = performWordLevelDiff(leftLine.html, rightLine.html);
+          leftProcessed.push({ 
+            ...leftLine, 
+            highlight: 'modified',
+            processedHtml: leftHighlighted 
+          });
+          rightProcessed.push({ 
+            ...rightLine, 
+            highlight: 'modified',
+            processedHtml: rightHighlighted 
+          });
+          additions++;
+          deletions++;
+        }
+        break;
+        
+      case 'addition':
         leftProcessed.push({ 
-          ...leftLine, 
+          element: null, 
+          text: '', 
+          html: '', 
+          isEmpty: true, 
           highlight: 'empty-space-added',
-          placeholderText: rightLine.text 
+          placeholderText: rightLine.text,
+          tagName: rightLine.tagName 
         });
         rightProcessed.push({ ...rightLine, highlight: 'added' });
         additions++;
-      } else if (!leftLine.isEmpty && rightLine.isEmpty) {
-        // Left has content, right empty - show as deletion
+        break;
+        
+      case 'deletion':
         leftProcessed.push({ ...leftLine, highlight: 'removed' });
         rightProcessed.push({ 
-          ...rightLine, 
+          element: null, 
+          text: '', 
+          html: '', 
+          isEmpty: true, 
           highlight: 'empty-space-removed',
-          placeholderText: leftLine.text 
+          placeholderText: leftLine.text,
+          tagName: leftLine.tagName 
         });
         deletions++;
-      } else if (areTextsEqual(leftLine.text, rightLine.text)) {
-        // Same content - no highlighting
-        leftProcessed.push({ ...leftLine, highlight: 'none' });
-        rightProcessed.push({ ...rightLine, highlight: 'none' });
-      } else {
-        // Different content - show as modified with word-level diff
-        const { leftHighlighted, rightHighlighted } = performWordLevelDiff(leftLine.html, rightLine.html);
-        leftProcessed.push({ 
-          ...leftLine, 
-          highlight: 'modified',
-          processedHtml: leftHighlighted 
-        });
-        rightProcessed.push({ 
-          ...rightLine, 
-          highlight: 'modified',
-          processedHtml: rightHighlighted 
-        });
-        additions++;
-        deletions++;
-      }
-    } else if (leftLine && !rightLine) {
-      // Only left line exists - show as removed
-      leftProcessed.push({ ...leftLine, highlight: 'removed' });
-      rightProcessed.push({ 
-        element: null, 
-        text: '', 
-        html: '', 
-        isEmpty: true, 
-        highlight: 'empty-space-removed',
-        placeholderText: leftLine.text,
-        tagName: leftLine.tagName 
-      });
-      deletions++;
-    } else if (!leftLine && rightLine) {
-      // Only right line exists - show as added
-      leftProcessed.push({ 
-        element: null, 
-        text: '', 
-        html: '', 
-        isEmpty: true, 
-        highlight: 'empty-space-added',
-        placeholderText: rightLine.text,
-        tagName: rightLine.tagName 
-      });
-      rightProcessed.push({ ...rightLine, highlight: 'added' });
-      additions++;
+        break;
     }
-  }
+  });
 
   return {
     leftProcessed,
     rightProcessed,
     summary: { additions, deletions, changes: additions + deletions }
   };
+};
+
+// Create optimal alignment between two document line arrays
+const createOptimalAlignment = (leftLines, rightLines) => {
+  const alignment = [];
+  let leftIndex = 0;
+  let rightIndex = 0;
+  
+  while (leftIndex < leftLines.length || rightIndex < rightLines.length) {
+    const leftLine = leftLines[leftIndex];
+    const rightLine = rightLines[rightIndex];
+    
+    if (!leftLine && !rightLine) {
+      break;
+    } else if (leftLine && rightLine) {
+      // Look ahead to find best match
+      const similarity = getTextSimilarity(leftLine.text, rightLine.text);
+      
+      if (similarity > 0.8 || areTextsEqual(leftLine.text, rightLine.text)) {
+        // Good match - align these lines
+        alignment.push({ leftIndex, rightIndex, type: 'match' });
+        leftIndex++;
+        rightIndex++;
+      } else {
+        // Look ahead to see if we can find a better match
+        const leftLookahead = findBestMatch(leftLine, rightLines.slice(rightIndex + 1, rightIndex + 4));
+        const rightLookahead = findBestMatch(rightLine, leftLines.slice(leftIndex + 1, leftIndex + 4));
+        
+        if (leftLookahead.score > rightLookahead.score && leftLookahead.score > 0.8) {
+          // Found better match for left line ahead in right document
+          alignment.push({ leftIndex: null, rightIndex, type: 'addition' });
+          rightIndex++;
+        } else if (rightLookahead.score > 0.8) {
+          // Found better match for right line ahead in left document
+          alignment.push({ leftIndex, rightIndex: null, type: 'deletion' });
+          leftIndex++;
+        } else {
+          // No good matches - treat as modification
+          alignment.push({ leftIndex, rightIndex, type: 'match' });
+          leftIndex++;
+          rightIndex++;
+        }
+      }
+    } else if (leftLine) {
+      // Only left line remains - deletion
+      alignment.push({ leftIndex, rightIndex: null, type: 'deletion' });
+      leftIndex++;
+    } else {
+      // Only right line remains - addition
+      alignment.push({ leftIndex: null, rightIndex, type: 'addition' });
+      rightIndex++;
+    }
+  }
+
+  return alignment;
+};
+
+// Find best matching line in a small lookahead window
+const findBestMatch = (targetLine, candidateLines) => {
+  let bestScore = 0;
+  let bestIndex = -1;
+  
+  candidateLines.forEach((candidate, index) => {
+    const similarity = getTextSimilarity(targetLine.text, candidate.text);
+    if (similarity > bestScore) {
+      bestScore = similarity;
+      bestIndex = index;
+    }
+  });
+  
+  return { score: bestScore, index: bestIndex };
 };
 
 // Apply processed lines back to the document
@@ -228,6 +278,9 @@ const applyProcessedLinesToDiv = (container, processedLines) => {
     } else {
       // Create new element for placeholder
       element = document.createElement(line.tagName || 'p');
+      // Ensure placeholder maintains original dimensions
+      element.style.minHeight = '1.5em';
+      element.style.lineHeight = '1.5';
     }
     
     // Apply highlighting classes
@@ -246,11 +299,23 @@ const applyProcessedLinesToDiv = (container, processedLines) => {
         break;
       case 'empty-space-added':
         element.classList.add('git-line-placeholder', 'placeholder-added');
-        element.innerHTML = `<span style="color: #166534; font-style: italic; opacity: 0.8;">[Empty space - content added: "${line.placeholderText?.substring(0, 50)}${line.placeholderText?.length > 50 ? '...' : ''}"]</span>`;
+        element.innerHTML = `<div class="placeholder-content placeholder-added-content">
+          <span class="placeholder-icon">+</span>
+          <span class="placeholder-text">Content added in modified document</span>
+          <div class="placeholder-preview">${escapeHtml(line.placeholderText?.substring(0, 80) || '')}${line.placeholderText?.length > 80 ? '...' : ''}</div>
+        </div>`;
+        // Maintain exact height of the added content
+        element.style.minHeight = '2.5em';
         break;
       case 'empty-space-removed':
         element.classList.add('git-line-placeholder', 'placeholder-removed');
-        element.innerHTML = `<span style="color: #991b1b; font-style: italic; opacity: 0.8;">[Empty space - content removed: "${line.placeholderText?.substring(0, 50)}${line.placeholderText?.length > 50 ? '...' : ''}"]</span>`;
+        element.innerHTML = `<div class="placeholder-content placeholder-removed-content">
+          <span class="placeholder-icon">−</span>
+          <span class="placeholder-text">Content removed from original document</span>
+          <div class="placeholder-preview">${escapeHtml(line.placeholderText?.substring(0, 80) || '')}${line.placeholderText?.length > 80 ? '...' : ''}</div>
+        </div>`;
+        // Maintain exact height of the removed content
+        element.style.minHeight = '2.5em';
         break;
       default:
         element.innerHTML = line.processedHtml || line.html;
