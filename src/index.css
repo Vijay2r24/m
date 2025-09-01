@@ -32,12 +32,47 @@
   width: 100% !important;
   table-layout: auto;
   word-wrap: break-word;
+  border-collapse: collapse !important;
+  margin: 16px 0 !important;
 }
 
 .word-document-preview img {
   max-width: 100% !important;
   height: auto !important;
   display: block;
+  margin: 16px auto !important;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Enhanced table styling */
+.word-document-preview table td,
+.word-document-preview table th {
+  border: 1px solid #e5e7eb !important;
+  padding: 8px 12px !important;
+  vertical-align: top !important;
+}
+
+.word-document-preview table th {
+  background-color: #f9fafb !important;
+  font-weight: 600 !important;
+}
+
+/* Figure and image container styling */
+.word-document-preview figure {
+  margin: 16px 0 !important;
+  text-align: center;
+  background: #fafafa;
+  border-radius: 8px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+}
+
+.word-document-preview figcaption {
+  margin-top: 8px !important;
+  font-size: 0.9em !important;
+  color: #6b7280 !important;
+  font-style: italic;
 }
 
 /* Handle long text and prevent horizontal overflow */
@@ -88,30 +123,39 @@
 
 /* Enhanced word-level diff highlighting */
 .word-document-preview .git-line-added {
-  background-color: #f0fdf4;
-  border-left: 4px solid #22c55e;
-  padding: 8px 12px;
-  margin: 4px 0;
-  border-radius: 6px;
-  box-shadow: 0 1px 3px rgba(34, 197, 94, 0.1);
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border: 2px solid #22c55e;
+  border-left: 6px solid #22c55e;
+  padding: 12px 16px;
+  margin: 8px 0;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.15);
+  position: relative;
+  transition: all 0.3s ease;
 }
 
 .word-document-preview .git-line-removed {
-  background-color: #fef2f2;
-  border-left: 4px solid #ef4444;
-  padding: 8px 12px;
-  margin: 4px 0;
-  border-radius: 6px;
-  box-shadow: 0 1px 3px rgba(239, 68, 68, 0.1);
+  background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%);
+  border: 2px solid #ef4444;
+  border-left: 6px solid #ef4444;
+  padding: 12px 16px;
+  margin: 8px 0;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);
+  position: relative;
+  transition: all 0.3s ease;
 }
 
 .word-document-preview .git-line-modified {
-  background-color: #fffbeb;
-  border-left: 4px solid #f59e0b;
-  padding: 8px 12px;
-  margin: 4px 0;
-  border-radius: 6px;
-  box-shadow: 0 1px 3px rgba(245, 158, 11, 0.1);
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border: 2px solid #f59e0b;
+  border-left: 6px solid #f59e0b;
+  padding: 12px 16px;
+  margin: 8px 0;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.15);
+  position: relative;
+  transition: all 0.3s ease;
 }
 
 .word-document-preview .git-line-placeholder {
@@ -131,26 +175,42 @@
 
 /* Enhanced inline word-level highlighting */
 .word-document-preview .git-inline-added {
-  background-color: #dcfce7;
+  background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
   color: #166534;
-  padding: 2px 6px;
-  border-radius: 3px;
+  padding: 3px 8px;
+  border-radius: 6px;
   font-weight: 600;
   white-space: pre-wrap;
-  box-shadow: 0 1px 2px rgba(34, 197, 94, 0.1);
-  border: 1px solid #bbf7d0;
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.2);
+  border: 2px solid #22c55e;
+  position: relative;
+  transition: all 0.2s ease;
 }
 
 .word-document-preview .git-inline-removed {
-  background-color: #fecaca;
+  background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
   color: #991b1b;
-  padding: 2px 6px;
-  border-radius: 3px;
+  padding: 3px 8px;
+  border-radius: 6px;
   font-weight: 600;
   white-space: pre-wrap;
-  box-shadow: 0 1px 2px rgba(239, 68, 68, 0.1);
-  border: 1px solid #fca5a5;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
+  border: 2px solid #ef4444;
   text-decoration: line-through;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.word-document-preview .git-inline-added:hover {
+  background: linear-gradient(135deg, #bbf7d0 0%, #86efac 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+}
+
+.word-document-preview .git-inline-removed:hover {
+  background: linear-gradient(135deg, #fca5a5 0%, #f87171 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
 }
 
 /* Placeholder highlighting for mutual comparison */
@@ -163,56 +223,60 @@
 
 /* Enhanced placeholder blocks */
 .word-document-preview .git-line-placeholder {
-  background: #f1f5f9;
-  border: 2px dashed #cbd5e1;
-  margin: 4px 0;
-  border-radius: 6px;
-  min-height: 48px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 3px dashed #cbd5e1;
+  margin: 8px 0;
+  border-radius: 12px;
+  min-height: 60px;
   display: block;
-  padding: 12px 16px;
+  padding: 16px 20px;
   display: flex;
   align-items: center;
   justify-content: flex-start;
   line-height: inherit;
   font-size: inherit;
   font-family: inherit;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
 }
 
 .word-document-preview .git-line-placeholder:hover {
-  background: #e2e8f0;
-  border-color: #94a3b8;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+  border-color: #64748b;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
 }
 
 .word-document-preview .placeholder-added {
-  border-color: #22c55e !important;
-  background-color: #f0fdf4 !important;
-  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.15);
+  border-color: #16a34a !important;
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%) !important;
+  box-shadow: 0 4px 15px rgba(34, 197, 94, 0.2);
 }
 
 .word-document-preview .placeholder-added:hover {
-  background-color: #dcfce7 !important;
-  border-color: #16a34a !important;
+  background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%) !important;
+  border-color: #15803d !important;
+  box-shadow: 0 8px 25px rgba(34, 197, 94, 0.3);
 }
 
 .word-document-preview .placeholder-removed {
-  border-color: #ef4444 !important;
-  background-color: #fef2f2 !important;
-  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.15);
+  border-color: #dc2626 !important;
+  background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%) !important;
+  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.2);
 }
 
 .word-document-preview .placeholder-removed:hover {
-  background-color: #fecaca !important;
-  border-color: #dc2626 !important;
+  background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%) !important;
+  border-color: #b91c1c !important;
+  box-shadow: 0 8px 25px rgba(239, 68, 68, 0.3);
 }
 
 /* Enhanced placeholder content styling */
 .word-document-preview .placeholder-content {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  gap: 12px;
   width: 100%;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
@@ -221,13 +285,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   font-weight: bold;
-  font-size: 14px;
-  margin-right: 8px;
+  font-size: 16px;
   flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .word-document-preview .placeholder-added-content .placeholder-icon {
@@ -240,17 +304,22 @@
   color: white;
 }
 
-.word-document-preview .placeholder-text {
+.word-document-preview .placeholder-details {
+  flex: 1;
+  text-align: left;
+}
+
+.word-document-preview .placeholder-title {
   font-weight: 600;
-  font-size: 13px;
+  font-size: 14px;
   margin-bottom: 2px;
 }
 
-.word-document-preview .placeholder-added-content .placeholder-text {
+.word-document-preview .placeholder-added-content .placeholder-title {
   color: #166534;
 }
 
-.word-document-preview .placeholder-removed-content .placeholder-text {
+.word-document-preview .placeholder-removed-content .placeholder-title {
   color: #991b1b;
 }
 
@@ -260,25 +329,19 @@
   opacity: 0.8;
   line-height: 1.3;
   word-break: break-word;
-  max-height: 2.6em;
+  max-height: 1.6em;
   overflow: hidden;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
 }
 
 .word-document-preview .placeholder-added-content .placeholder-preview {
   color: #15803d;
-  background-color: rgba(34, 197, 94, 0.1);
-  padding: 2px 6px;
-  border-radius: 3px;
 }
 
 .word-document-preview .placeholder-removed-content .placeholder-preview {
   color: #b91c1c;
-  background-color: rgba(239, 68, 68, 0.1);
-  padding: 2px 6px;
-  border-radius: 3px;
 }
 
 /* Enhanced mutual comparison highlighting */
@@ -658,46 +721,53 @@
 
 /* Table-level highlighting */
 .word-document-preview .git-table-added {
-  outline: 3px solid #22c55e;
-  outline-offset: 2px;
-  background-color: #f0fdf4;
+  outline: 4px solid #22c55e !important;
+  outline-offset: 4px !important;
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 25px rgba(34, 197, 94, 0.2) !important;
 }
 
 .word-document-preview .git-table-removed {
-  outline: 3px solid #ef4444;
-  outline-offset: 2px;
-  background-color: #fef2f2;
+  outline: 4px solid #ef4444 !important;
+  outline-offset: 4px !important;
+  background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 25px rgba(239, 68, 68, 0.2) !important;
 }
 
-/* Row-level highlighting */
-.word-document-preview .git-row-added {
-  background-color: #f0fdf4;
-  border-left: 4px solid #22c55e;
-}
-
-.word-document-preview .git-row-removed {
-  background-color: #fef2f2;
-  border-left: 4px solid #ef4444;
+.word-document-preview .git-table-modified {
+  outline: 4px solid #f59e0b !important;
+  outline-offset: 4px !important;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 25px rgba(245, 158, 11, 0.2) !important;
 }
 
 /* Image highlighting */
 .word-document-preview .git-image-added {
-  outline: 3px solid #22c55e;
-  outline-offset: 3px;
-  background-color: #f0fdf4;
-  border-radius: 4px;
+  outline: 4px solid #22c55e !important;
+  outline-offset: 6px !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 25px rgba(34, 197, 94, 0.25) !important;
+  background: #f0fdf4 !important;
+  padding: 8px !important;
 }
 
 .word-document-preview .git-image-removed {
-  outline: 3px solid #ef4444;
-  outline-offset: 3px;
-  background-color: #fef2f2;
-  border-radius: 4px;
+  outline: 4px solid #ef4444 !important;
+  outline-offset: 6px !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 25px rgba(239, 68, 68, 0.25) !important;
+  background: #fef2f2 !important;
+  padding: 8px !important;
 }
 
 .word-document-preview .git-image-modified {
-  outline: 3px solid #f59e0b;
-  outline-offset: 3px;
-  background-color: #fffbeb;
-  border-radius: 4px;
+  outline: 4px solid #f59e0b !important;
+  outline-offset: 6px !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 25px rgba(245, 158, 11, 0.25) !important;
+  background: #fffbeb !important;
+  padding: 8px !important;
 }

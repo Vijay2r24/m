@@ -46,10 +46,10 @@ export const parseWordDocument = async (file, onProgress) => {
       
       // Content rendering - preserve all formatting
       renderImages: true,
-      imageRendering: 'fast',
-      imageQuality: 0.8,
-      convertImages: true,
-      imagePositioning: 'inline',
+      imageRendering: 'crisp',
+      imageQuality: 1.0,
+      convertImages: false,
+      imagePositioning: 'original',
       
       // Text and layout - preserve exact formatting
       renderTables: true,
@@ -63,18 +63,18 @@ export const parseWordDocument = async (file, onProgress) => {
       // Advanced features - simplified for performance
       renderHyperlinks: true,
       renderBookmarks: true,
-      renderComments: false,
-      renderRevisions: false,
+      renderComments: true,
+      renderRevisions: true,
       renderFields: true,
-      renderFormulas: false,
-      renderCharts: false,
-      renderShapes: false,
-      renderSmartArt: false,
+      renderFormulas: true,
+      renderCharts: true,
+      renderShapes: true,
+      renderSmartArt: true,
       renderWatermarks: false,
       renderBackgrounds: true,
       renderBorders: true,
-      renderShadows: false,
-      renderEffects: false,
+      renderShadows: true,
+      renderEffects: true,
       renderTransforms: false,
       renderAnimations: false,
       renderMedia: false,
@@ -87,7 +87,7 @@ export const parseWordDocument = async (file, onProgress) => {
       renderSdt: false,
       
       // Font handling - preserve exact fonts and sizes
-      fontRendering: 'fast',
+      fontRendering: 'crisp',
       fontSubstitution: false,
       fontEmbedding: false,
       

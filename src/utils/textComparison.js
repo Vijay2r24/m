@@ -97,16 +97,21 @@ const performMutualComparison = (leftHtml, rightHtml) => {
 // Extract lines with their elements for processing
 const extractDocumentLines = (container) => {
   const lines = [];
-  const elements = container.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, div');
+  const elements = container.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, div, table, img, figure');
   
   elements.forEach((element, index) => {
-    // Skip nested elements and tables
-    if (element.closest('table') || element.querySelector('p, h1, h2, h3, h4, h5, h6, li')) {
+    // Skip nested elements but include tables and images
+    if (element.tagName.toLowerCase() !== 'table' && 
+        element.tagName.toLowerCase() !== 'img' && 
+        element.tagName.toLowerCase() !== 'figure' &&
+        (element.closest('table') || element.querySelector('p, h1, h2, h3, h4, h5, h6, li'))) {
       return;
     }
     
     const text = (element.textContent || '').trim();
     const html = element.innerHTML || '';
+    const isTable = element.tagName.toLowerCase() === 'table';
+    const isImage = element.tagName.toLowerCase() === 'img' || element.tagName.toLowerCase() === 'figure';
     
     lines.push({
       element,
@@ -114,7 +119,10 @@ const extractDocumentLines = (container) => {
       html,
       index,
       tagName: element.tagName.toLowerCase(),
-      isEmpty: !text
+      isEmpty: !text && !isTable && !isImage,
+      isTable,
+      isImage,
+      outerHTML: element.outerHTML
     });
   });
   
@@ -136,7 +144,31 @@ const performLineMutualComparison = (leftLines, rightLines) => {
     
     switch (type) {
       case 'match':
-        if (areTextsEqual(leftLine.text, rightLine.text)) {
+        if (leftLine.isTable && rightLine.isTable) {
+          // Compare table content
+          const tablesEqual = compareTableContent(leftLine.element, rightLine.element);
+          if (tablesEqual) {
+            leftProcessed.push({ ...leftLine, highlight: 'none' });
+            rightProcessed.push({ ...rightLine, highlight: 'none' });
+          } else {
+            leftProcessed.push({ ...leftLine, highlight: 'modified' });
+            rightProcessed.push({ ...rightLine, highlight: 'modified' });
+            additions++;
+            deletions++;
+          }
+        } else if (leftLine.isImage && rightLine.isImage) {
+          // Compare image attributes
+          const imagesEqual = compareImageContent(leftLine.element, rightLine.element);
+          if (imagesEqual) {
+            leftProcessed.push({ ...leftLine, highlight: 'none' });
+            rightProcessed.push({ ...rightLine, highlight: 'none' });
+          } else {
+            leftProcessed.push({ ...leftLine, highlight: 'modified' });
+            rightProcessed.push({ ...rightLine, highlight: 'modified' });
+            additions++;
+            deletions++;
+          }
+        } else if (areTextsEqual(leftLine.text, rightLine.text)) {
           leftProcessed.push({ ...leftLine, highlight: 'none' });
           rightProcessed.push({ ...rightLine, highlight: 'none' });
         } else {
@@ -164,7 +196,9 @@ const performLineMutualComparison = (leftLines, rightLines) => {
           isEmpty: true, 
           highlight: 'empty-space-added',
           placeholderText: rightLine.text,
-          tagName: rightLine.tagName 
+          tagName: rightLine.tagName,
+          isTable: rightLine.isTable,
+          isImage: rightLine.isImage
         });
         rightProcessed.push({ ...rightLine, highlight: 'added' });
         additions++;
@@ -179,7 +213,9 @@ const performLineMutualComparison = (leftLines, rightLines) => {
           isEmpty: true, 
           highlight: 'empty-space-removed',
           placeholderText: leftLine.text,
-          tagName: leftLine.tagName 
+          tagName: leftLine.tagName,
+          isTable: leftLine.isTable,
+          isImage: leftLine.isImage
         });
         deletions++;
         break;
@@ -273,52 +309,130 @@ const applyProcessedLinesToDiv = (container, processedLines) => {
     let element;
     
     if (line.element) {
-      // Use existing element
-      element = line.element.cloneNode(false);
+      // Use existing element with full content
+      element = line.element.cloneNode(true);
     } else {
       // Create new element for placeholder
       element = document.createElement(line.tagName || 'p');
-      // Ensure placeholder maintains original dimensions
-      element.style.minHeight = '1.5em';
-      element.style.lineHeight = '1.5';
+      // Ensure placeholder maintains original dimensions based on content type
+      if (line.isTable) {
+        element.style.minHeight = '100px';
+        element.style.border = '2px dashed #cbd5e1';
+        element.style.borderRadius = '8px';
+        element.style.display = 'block';
+      } else if (line.isImage) {
+        element.style.minHeight = '150px';
+        element.style.border = '2px dashed #cbd5e1';
+        element.style.borderRadius = '8px';
+        element.style.display = 'block';
+        element.style.width = '100%';
+      } else {
+        element.style.minHeight = '1.5em';
+        element.style.lineHeight = '1.5';
+      }
     }
     
     // Apply highlighting classes
     switch (line.highlight) {
       case 'added':
         element.classList.add('git-line-added');
-        element.innerHTML = line.processedHtml || line.html;
+        if (line.isTable) {
+          element.classList.add('git-table-added');
+        } else if (line.isImage) {
+          element.classList.add('git-image-added');
+        }
+        if (line.processedHtml) {
+          element.innerHTML = line.processedHtml;
+        }
         break;
       case 'removed':
         element.classList.add('git-line-removed');
-        element.innerHTML = line.processedHtml || line.html;
+        if (line.isTable) {
+          element.classList.add('git-table-removed');
+        } else if (line.isImage) {
+          element.classList.add('git-image-removed');
+        }
+        if (line.processedHtml) {
+          element.innerHTML = line.processedHtml;
+        }
         break;
       case 'modified':
         element.classList.add('git-line-modified');
-        element.innerHTML = line.processedHtml || line.html;
+        if (line.isTable) {
+          element.classList.add('git-table-modified');
+        } else if (line.isImage) {
+          element.classList.add('git-image-modified');
+        }
+        if (line.processedHtml) {
+          element.innerHTML = line.processedHtml;
+        }
         break;
       case 'empty-space-added':
         element.classList.add('git-line-placeholder', 'placeholder-added');
-        element.innerHTML = `<div class="placeholder-content placeholder-added-content">
-          <span class="placeholder-icon">+</span>
-          <span class="placeholder-text">Content added in modified document</span>
-          <div class="placeholder-preview">${escapeHtml(line.placeholderText?.substring(0, 80) || '')}${line.placeholderText?.length > 80 ? '...' : ''}</div>
-        </div>`;
-        // Maintain exact height of the added content
-        element.style.minHeight = '2.5em';
+        if (line.isTable) {
+          element.innerHTML = `<div class="placeholder-content placeholder-added-content">
+            <span class="placeholder-icon">📊</span>
+            <div class="placeholder-details">
+              <div class="placeholder-title">Table added in modified document</div>
+              <div class="placeholder-preview">Table with content...</div>
+            </div>
+          </div>`;
+          element.style.minHeight = '120px';
+        } else if (line.isImage) {
+          element.innerHTML = `<div class="placeholder-content placeholder-added-content">
+            <span class="placeholder-icon">🖼️</span>
+            <div class="placeholder-details">
+              <div class="placeholder-title">Image added in modified document</div>
+              <div class="placeholder-preview">Image content...</div>
+            </div>
+          </div>`;
+          element.style.minHeight = '180px';
+        } else {
+          element.innerHTML = `<div class="placeholder-content placeholder-added-content">
+            <span class="placeholder-icon">+</span>
+            <div class="placeholder-details">
+              <div class="placeholder-title">Content added in modified document</div>
+              <div class="placeholder-preview">${escapeHtml(line.placeholderText?.substring(0, 80) || '')}${line.placeholderText?.length > 80 ? '...' : ''}</div>
+            </div>
+          </div>`;
+          element.style.minHeight = '2.5em';
+        }
         break;
       case 'empty-space-removed':
         element.classList.add('git-line-placeholder', 'placeholder-removed');
-        element.innerHTML = `<div class="placeholder-content placeholder-removed-content">
-          <span class="placeholder-icon">−</span>
-          <span class="placeholder-text">Content removed from original document</span>
-          <div class="placeholder-preview">${escapeHtml(line.placeholderText?.substring(0, 80) || '')}${line.placeholderText?.length > 80 ? '...' : ''}</div>
-        </div>`;
-        // Maintain exact height of the removed content
-        element.style.minHeight = '2.5em';
+        if (line.isTable) {
+          element.innerHTML = `<div class="placeholder-content placeholder-removed-content">
+            <span class="placeholder-icon">📊</span>
+            <div class="placeholder-details">
+              <div class="placeholder-title">Table removed from original document</div>
+              <div class="placeholder-preview">Table with content...</div>
+            </div>
+          </div>`;
+          element.style.minHeight = '120px';
+        } else if (line.isImage) {
+          element.innerHTML = `<div class="placeholder-content placeholder-removed-content">
+            <span class="placeholder-icon">🖼️</span>
+            <div class="placeholder-details">
+              <div class="placeholder-title">Image removed from original document</div>
+              <div class="placeholder-preview">Image content...</div>
+            </div>
+          </div>`;
+          element.style.minHeight = '180px';
+        } else {
+          element.innerHTML = `<div class="placeholder-content placeholder-removed-content">
+            <span class="placeholder-icon">−</span>
+            <div class="placeholder-details">
+              <div class="placeholder-title">Content removed from original document</div>
+              <div class="placeholder-preview">${escapeHtml(line.placeholderText?.substring(0, 80) || '')}${line.placeholderText?.length > 80 ? '...' : ''}</div>
+            </div>
+          </div>`;
+          element.style.minHeight = '2.5em';
+        }
         break;
       default:
-        element.innerHTML = line.processedHtml || line.html;
+        if (line.processedHtml) {
+          element.innerHTML = line.processedHtml;
+        }
     }
     
     container.appendChild(element);
@@ -518,4 +632,42 @@ const createInlineDiff = (leftText, rightText) => {
     if (operation === -1) return `<span class="git-inline-removed">${escaped}</span>`;
     return escaped;
   }).join("");
+};
+
+// Compare table content for differences
+const compareTableContent = (table1, table2) => {
+  if (!table1 || !table2) return false;
+  
+  const rows1 = table1.querySelectorAll('tr');
+  const rows2 = table2.querySelectorAll('tr');
+  
+  if (rows1.length !== rows2.length) return false;
+  
+  for (let i = 0; i < rows1.length; i++) {
+    const cells1 = rows1[i].querySelectorAll('td, th');
+    const cells2 = rows2[i].querySelectorAll('td, th');
+    
+    if (cells1.length !== cells2.length) return false;
+    
+    for (let j = 0; j < cells1.length; j++) {
+      const text1 = (cells1[j].textContent || '').trim();
+      const text2 = (cells2[j].textContent || '').trim();
+      if (text1 !== text2) return false;
+    }
+  }
+  
+  return true;
+};
+
+// Compare image content for differences
+const compareImageContent = (img1, img2) => {
+  if (!img1 || !img2) return false;
+  
+  // Compare src, alt, and dimensions
+  const src1 = img1.src || img1.getAttribute('src') || '';
+  const src2 = img2.src || img2.getAttribute('src') || '';
+  const alt1 = img1.alt || '';
+  const alt2 = img2.alt || '';
+  
+  return src1 === src2 && alt1 === alt2;
 };
