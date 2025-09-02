@@ -97,47 +97,18 @@ const performMutualComparison = (leftHtml, rightHtml) => {
 // Extract lines with their elements for processing
 const extractDocumentLines = (container) => {
   const lines = [];
-  // Get all direct children and their nested content elements
-  const walker = document.createTreeWalker(
-    container,
-    NodeFilter.SHOW_ELEMENT,
-    {
-      acceptNode: function(node) {
-        const tagName = node.tagName.toLowerCase();
-        // Include all content elements but avoid deeply nested duplicates
-        if (['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'div', 'table', 'img', 'figure'].includes(tagName)) {
-          // Skip if this element is inside a table cell (we'll handle tables as whole units)
-          if (tagName !== 'table' && node.closest('td, th')) {
-            return NodeFilter.FILTER_REJECT;
-          }
-          // Skip if this is a nested content element inside another content element (except tables/images)
-          if (!['table', 'img', 'figure'].includes(tagName) && 
-              node.parentElement && 
-              ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'div'].includes(node.parentElement.tagName.toLowerCase()) &&
-              node.parentElement !== container) {
-            return NodeFilter.FILTER_REJECT;
-          }
-          return NodeFilter.FILTER_ACCEPT;
-        }
-        return NodeFilter.FILTER_REJECT;
-      }
-    }
-  );
   
-  let element;
-  let index = 0;
-  while (element = walker.nextNode()) {
+  // Get all direct children elements
+  const children = Array.from(container.children);
+  
+  children.forEach((element, index) => {
     const tagName = element.tagName.toLowerCase();
     const text = (element.textContent || '').trim();
     const html = element.innerHTML || '';
     const isTable = tagName === 'table';
     const isImage = tagName === 'img' || tagName === 'figure';
     
-    // Skip empty divs that don't contain meaningful content
-    if (tagName === 'div' && !text && !isTable && !isImage && !element.querySelector('img, table, figure')) {
-      continue;
-    }
-    
+    // Include all elements, even empty ones for proper alignment
     lines.push({
       element,
       text,
@@ -149,9 +120,33 @@ const extractDocumentLines = (container) => {
       isImage,
       outerHTML: element.outerHTML
     });
-    
-    index++;
-  }
+  });
+  
+  // Also check for nested tables and images that might be inside divs
+  const nestedTables = container.querySelectorAll('div table, div img, div figure');
+  nestedTables.forEach((element, index) => {
+    // Only add if not already included as a direct child
+    const isDirectChild = children.includes(element);
+    if (!isDirectChild) {
+      const tagName = element.tagName.toLowerCase();
+      const text = (element.textContent || '').trim();
+      const html = element.innerHTML || '';
+      const isTable = tagName === 'table';
+      const isImage = tagName === 'img' || tagName === 'figure';
+      
+      lines.push({
+        element,
+        text,
+        html,
+        index: children.length + index,
+        tagName,
+        isEmpty: false,
+        isTable,
+        isImage,
+        outerHTML: element.outerHTML
+      });
+    }
+  });
   
   return lines;
 };
@@ -162,92 +157,90 @@ const performLineMutualComparison = (leftLines, rightLines) => {
   const rightProcessed = [];
   let additions = 0, deletions = 0;
 
-  // Enhanced alignment algorithm for better mutual comparison
-  const alignment = createOptimalAlignment(leftLines, rightLines);
+  // Simple line-by-line comparison
+  const maxLength = Math.max(leftLines.length, rightLines.length);
   
-  alignment.forEach(({ leftIndex, rightIndex, type }) => {
-    const leftLine = leftIndex !== null ? leftLines[leftIndex] : null;
-    const rightLine = rightIndex !== null ? rightLines[rightIndex] : null;
+  for (let i = 0; i < maxLength; i++) {
+    const leftLine = leftLines[i];
+    const rightLine = rightLines[i];
     
-    switch (type) {
-      case 'match':
-        if (leftLine.isTable && rightLine.isTable) {
-          // Compare table content
-          const tablesEqual = compareTableContent(leftLine.element, rightLine.element);
-          if (tablesEqual) {
-            leftProcessed.push({ ...leftLine, highlight: 'none' });
-            rightProcessed.push({ ...rightLine, highlight: 'none' });
-          } else {
-            leftProcessed.push({ ...leftLine, highlight: 'modified' });
-            rightProcessed.push({ ...rightLine, highlight: 'modified' });
-            additions++;
-            deletions++;
-          }
-        } else if (leftLine.isImage && rightLine.isImage) {
-          // Compare image attributes
-          const imagesEqual = compareImageContent(leftLine.element, rightLine.element);
-          if (imagesEqual) {
-            leftProcessed.push({ ...leftLine, highlight: 'none' });
-            rightProcessed.push({ ...rightLine, highlight: 'none' });
-          } else {
-            leftProcessed.push({ ...leftLine, highlight: 'modified' });
-            rightProcessed.push({ ...rightLine, highlight: 'modified' });
-            additions++;
-            deletions++;
-          }
-        } else if (areTextsEqual(leftLine.text, rightLine.text)) {
+    if (leftLine && rightLine) {
+      // Both lines exist - compare them
+      if (leftLine.isTable && rightLine.isTable) {
+        const tablesEqual = compareTableContent(leftLine.element, rightLine.element);
+        if (tablesEqual) {
           leftProcessed.push({ ...leftLine, highlight: 'none' });
           rightProcessed.push({ ...rightLine, highlight: 'none' });
         } else {
-          const { leftHighlighted, rightHighlighted } = performWordLevelDiff(leftLine.html, rightLine.html);
-          leftProcessed.push({ 
-            ...leftLine, 
-            highlight: 'modified',
-            processedHtml: leftHighlighted 
-          });
-          rightProcessed.push({ 
-            ...rightLine, 
-            highlight: 'modified',
-            processedHtml: rightHighlighted 
-          });
+          leftProcessed.push({ ...leftLine, highlight: 'modified' });
+          rightProcessed.push({ ...rightLine, highlight: 'modified' });
           additions++;
           deletions++;
         }
-        break;
-        
-      case 'addition':
+      } else if (leftLine.isImage && rightLine.isImage) {
+        const imagesEqual = compareImageContent(leftLine.element, rightLine.element);
+        if (imagesEqual) {
+          leftProcessed.push({ ...leftLine, highlight: 'none' });
+          rightProcessed.push({ ...rightLine, highlight: 'none' });
+        } else {
+          leftProcessed.push({ ...leftLine, highlight: 'modified' });
+          rightProcessed.push({ ...rightLine, highlight: 'modified' });
+          additions++;
+          deletions++;
+        }
+      } else if (areTextsEqual(leftLine.text, rightLine.text)) {
+        leftProcessed.push({ ...leftLine, highlight: 'none' });
+        rightProcessed.push({ ...rightLine, highlight: 'none' });
+      } else {
+        // Text differs - apply word-level highlighting
+        const { leftHighlighted, rightHighlighted } = performWordLevelDiff(leftLine.html, rightLine.html);
         leftProcessed.push({ 
-          element: null, 
-          text: '', 
-          html: '', 
-          isEmpty: true, 
-          highlight: 'empty-space-added',
-          placeholderText: rightLine.text,
-          tagName: rightLine.tagName,
-          isTable: rightLine.isTable,
-          isImage: rightLine.isImage
+          ...leftLine, 
+          highlight: 'modified',
+          processedHtml: leftHighlighted 
         });
-        rightProcessed.push({ ...rightLine, highlight: 'added' });
-        additions++;
-        break;
-        
-      case 'deletion':
-        leftProcessed.push({ ...leftLine, highlight: 'removed' });
         rightProcessed.push({ 
-          element: null, 
-          text: '', 
-          html: '', 
-          isEmpty: true, 
-          highlight: 'empty-space-removed',
-          placeholderText: leftLine.text,
-          tagName: leftLine.tagName,
-          isTable: leftLine.isTable,
-          isImage: leftLine.isImage
+          ...rightLine, 
+          highlight: 'modified',
+          processedHtml: rightHighlighted 
         });
+        additions++;
         deletions++;
-        break;
+      }
+    } else if (leftLine && !rightLine) {
+      // Line exists only in left (removed)
+      leftProcessed.push({ ...leftLine, highlight: 'removed' });
+      rightProcessed.push({ 
+        element: null, 
+        text: '', 
+        html: '', 
+        isEmpty: true, 
+        highlight: 'empty-space-removed',
+        placeholderText: leftLine.text,
+        tagName: leftLine.tagName,
+        isTable: leftLine.isTable,
+        isImage: leftLine.isImage,
+        originalElement: leftLine.element
+      });
+      deletions++;
+    } else if (!leftLine && rightLine) {
+      // Line exists only in right (added)
+      leftProcessed.push({ 
+        element: null, 
+        text: '', 
+        html: '', 
+        isEmpty: true, 
+        highlight: 'empty-space-added',
+        placeholderText: rightLine.text,
+        tagName: rightLine.tagName,
+        isTable: rightLine.isTable,
+        isImage: rightLine.isImage,
+        originalElement: rightLine.element
+      });
+      rightProcessed.push({ ...rightLine, highlight: 'added' });
+      additions++;
     }
-  });
+  }
 
   return {
     leftProcessed,
@@ -329,29 +322,31 @@ const findBestMatch = (targetLine, candidateLines) => {
 
 // Apply processed lines back to the document
 const applyProcessedLinesToDiv = (container, processedLines) => {
-  // Get all original elements to preserve their exact formatting
-  const originalElements = Array.from(container.children);
-  let elementIndex = 0;
-  
+  // Clear container and rebuild with processed content
+  container.innerHTML = '';
+
   processedLines.forEach(line => {
-    let element = null;
-    
     if (line.element) {
-      // Use the original element to preserve exact formatting
-      element = line.element;
+      // Clone the original element to preserve formatting
+      const element = line.element.cloneNode(true);
       
-      // Only apply highlighting classes, don't change content
+      // Apply highlighting without changing original formatting
       if (line.highlight === 'added') {
-        element.classList.add('git-highlight-added');
+        element.classList.add('git-line-added');
       } else if (line.highlight === 'removed') {
-        element.classList.add('git-highlight-removed');
+        element.classList.add('git-line-removed');
       } else if (line.highlight === 'modified') {
-        element.classList.add('git-highlight-modified');
-        // Apply word-level highlighting while preserving structure
+        element.classList.add('git-line-modified');
         if (line.processedHtml) {
           element.innerHTML = line.processedHtml;
         }
       }
+      
+      container.appendChild(element);
+    } else {
+      // Create placeholder element
+      const placeholder = createPlaceholderElement(line);
+      container.appendChild(placeholder);
     } else {
       // Create minimal placeholder that matches original content dimensions
       element = document.createElement('div');
@@ -384,54 +379,58 @@ const applyProcessedLinesToDiv = (container, processedLines) => {
       }
     }
   });
-  
-  // Rebuild container with processed elements while preserving order
-  const newContainer = document.createElement('div');
-  newContainer.className = container.className;
-  
-  processedLines.forEach(line => {
-    if (line.element) {
-      newContainer.appendChild(line.element);
-    } else {
-      // Create placeholder element
-      const placeholder = createPlaceholderElement(line);
-      newContainer.appendChild(placeholder);
-    }
-  });
-  
-  container.innerHTML = newContainer.innerHTML;
 };
 
 // Create placeholder element that maintains original spacing
 const createPlaceholderElement = (line) => {
-  const element = document.createElement('div');
-  element.classList.add('git-placeholder');
+  // Create placeholder that matches the original element type and size
+  let element;
   
-  if (line.isTable) {
-    element.classList.add('git-placeholder-table');
-    element.innerHTML = `<div class="placeholder-table-content">
-      <span class="placeholder-icon">${line.highlight === 'empty-space-added' ? '+' : '−'}</span>
-      <span class="placeholder-text">Table ${line.highlight === 'empty-space-added' ? 'added' : 'removed'}</span>
-    </div>`;
-  } else if (line.isImage) {
-    element.classList.add('git-placeholder-image');
-    element.innerHTML = `<div class="placeholder-image-content">
-      <span class="placeholder-icon">${line.highlight === 'empty-space-added' ? '+' : '−'}</span>
-      <span class="placeholder-text">Image ${line.highlight === 'empty-space-added' ? 'added' : 'removed'}</span>
-    </div>`;
+  if (line.originalElement) {
+    // Clone the original element structure but make it a placeholder
+    element = line.originalElement.cloneNode(true);
+    element.classList.add('git-placeholder');
+    
+    // Clear content but maintain structure
+    if (line.isTable) {
+      element.classList.add('placeholder-table');
+      // Keep table structure but make cells empty placeholders
+      const cells = element.querySelectorAll('td, th');
+      cells.forEach(cell => {
+        cell.innerHTML = '<span class="placeholder-cell-content">•</span>';
+        cell.classList.add('placeholder-cell');
+      });
+    } else if (line.isImage) {
+      element.classList.add('placeholder-image');
+      element.innerHTML = '<div class="placeholder-image-content">🖼️ Image placeholder</div>';
+    } else {
+      element.classList.add('placeholder-text');
+      const previewText = line.placeholderText?.substring(0, 100) || '';
+      element.innerHTML = `<span class="placeholder-text-content">${escapeHtml(previewText)}${line.placeholderText?.length > 100 ? '...' : ''}</span>`;
+    }
   } else {
-    element.classList.add('git-placeholder-text');
-    const previewText = line.placeholderText?.substring(0, 50) || '';
-    element.innerHTML = `<div class="placeholder-text-content">
-      <span class="placeholder-icon">${line.highlight === 'empty-space-added' ? '+' : '−'}</span>
-      <span class="placeholder-text">${escapeHtml(previewText)}${line.placeholderText?.length > 50 ? '...' : ''}</span>
-    </div>`;
+    // Fallback: create simple placeholder
+    element = document.createElement('div');
+    element.classList.add('git-placeholder');
+    
+    if (line.isTable) {
+      element.classList.add('placeholder-table');
+      element.innerHTML = '<div class="placeholder-simple">📊 Table placeholder</div>';
+    } else if (line.isImage) {
+      element.classList.add('placeholder-image');
+      element.innerHTML = '<div class="placeholder-simple">🖼️ Image placeholder</div>';
+    } else {
+      element.classList.add('placeholder-text');
+      const previewText = line.placeholderText?.substring(0, 100) || '';
+      element.innerHTML = `<div class="placeholder-simple">${escapeHtml(previewText)}${line.placeholderText?.length > 100 ? '...' : ''}</div>`;
+    }
   }
   
+  if (line.isTable) {
   if (line.highlight === 'empty-space-added') {
-    element.classList.add('git-placeholder-added');
+    element.classList.add('placeholder-added');
   } else if (line.highlight === 'empty-space-removed') {
-    element.classList.add('git-placeholder-removed');
+    element.classList.add('placeholder-removed');
   }
   
   return element;
