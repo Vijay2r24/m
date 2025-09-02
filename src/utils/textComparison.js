@@ -97,34 +97,61 @@ const performMutualComparison = (leftHtml, rightHtml) => {
 // Extract lines with their elements for processing
 const extractDocumentLines = (container) => {
   const lines = [];
-  const elements = container.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, div, table, img, figure');
-  
-  elements.forEach((element, index) => {
-    // Skip nested elements but include tables and images
-    if (element.tagName.toLowerCase() !== 'table' && 
-        element.tagName.toLowerCase() !== 'img' && 
-        element.tagName.toLowerCase() !== 'figure' &&
-        (element.closest('table') || element.querySelector('p, h1, h2, h3, h4, h5, h6, li'))) {
-      return;
+  // Get all direct children and their nested content elements
+  const walker = document.createTreeWalker(
+    container,
+    NodeFilter.SHOW_ELEMENT,
+    {
+      acceptNode: function(node) {
+        const tagName = node.tagName.toLowerCase();
+        // Include all content elements but avoid deeply nested duplicates
+        if (['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'div', 'table', 'img', 'figure'].includes(tagName)) {
+          // Skip if this element is inside a table cell (we'll handle tables as whole units)
+          if (tagName !== 'table' && node.closest('td, th')) {
+            return NodeFilter.FILTER_REJECT;
+          }
+          // Skip if this is a nested content element inside another content element (except tables/images)
+          if (!['table', 'img', 'figure'].includes(tagName) && 
+              node.parentElement && 
+              ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'div'].includes(node.parentElement.tagName.toLowerCase()) &&
+              node.parentElement !== container) {
+            return NodeFilter.FILTER_REJECT;
+          }
+          return NodeFilter.FILTER_ACCEPT;
+        }
+        return NodeFilter.FILTER_REJECT;
+      }
     }
-    
+  );
+  
+  let element;
+  let index = 0;
+  while (element = walker.nextNode()) {
+    const tagName = element.tagName.toLowerCase();
     const text = (element.textContent || '').trim();
     const html = element.innerHTML || '';
-    const isTable = element.tagName.toLowerCase() === 'table';
-    const isImage = element.tagName.toLowerCase() === 'img' || element.tagName.toLowerCase() === 'figure';
+    const isTable = tagName === 'table';
+    const isImage = tagName === 'img' || tagName === 'figure';
+    
+    // Skip empty divs that don't contain meaningful content
+    if (tagName === 'div' && !text && !isTable && !isImage && !element.querySelector('img, table, figure')) {
+      continue;
+    }
     
     lines.push({
       element,
       text,
       html,
       index,
-      tagName: element.tagName.toLowerCase(),
+      tagName,
       isEmpty: !text && !isTable && !isImage,
       isTable,
       isImage,
       outerHTML: element.outerHTML
     });
-  });
+    
+    index++;
+  }
   
   return lines;
 };
@@ -302,141 +329,112 @@ const findBestMatch = (targetLine, candidateLines) => {
 
 // Apply processed lines back to the document
 const applyProcessedLinesToDiv = (container, processedLines) => {
-  // Clear existing content
-  container.innerHTML = '';
+  // Get all original elements to preserve their exact formatting
+  const originalElements = Array.from(container.children);
+  let elementIndex = 0;
   
   processedLines.forEach(line => {
-    let element;
+    let element = null;
     
     if (line.element) {
-      // Use existing element with full content
-      element = line.element.cloneNode(true);
+      // Use the original element to preserve exact formatting
+      element = line.element;
+      
+      // Only apply highlighting classes, don't change content
+      if (line.highlight === 'added') {
+        element.classList.add('git-highlight-added');
+      } else if (line.highlight === 'removed') {
+        element.classList.add('git-highlight-removed');
+      } else if (line.highlight === 'modified') {
+        element.classList.add('git-highlight-modified');
+        // Apply word-level highlighting while preserving structure
+        if (line.processedHtml) {
+          element.innerHTML = line.processedHtml;
+        }
+      }
     } else {
-      // Create new element for placeholder
-      element = document.createElement(line.tagName || 'p');
-      // Ensure placeholder maintains original dimensions based on content type
+      // Create minimal placeholder that matches original content dimensions
+      element = document.createElement('div');
+      element.classList.add('git-placeholder');
+      
       if (line.isTable) {
-        element.style.minHeight = '100px';
-        element.style.border = '2px dashed #cbd5e1';
-        element.style.borderRadius = '8px';
-        element.style.display = 'block';
+        element.classList.add('git-placeholder-table');
+        element.innerHTML = `<div class="placeholder-table-content">
+          <span class="placeholder-icon">${line.highlight === 'empty-space-added' ? '+' : '−'}</span>
+          <span class="placeholder-text">Table ${line.highlight === 'empty-space-added' ? 'added' : 'removed'}</span>
+        </div>`;
       } else if (line.isImage) {
-        element.style.minHeight = '150px';
-        element.style.border = '2px dashed #cbd5e1';
-        element.style.borderRadius = '8px';
-        element.style.display = 'block';
-        element.style.width = '100%';
+        element.classList.add('git-placeholder-image');
+        element.innerHTML = `<div class="placeholder-image-content">
+          <span class="placeholder-icon">${line.highlight === 'empty-space-added' ? '+' : '−'}</span>
+          <span class="placeholder-text">Image ${line.highlight === 'empty-space-added' ? 'added' : 'removed'}</span>
+        </div>`;
       } else {
-        element.style.minHeight = '1.5em';
-        element.style.lineHeight = '1.5';
+        element.classList.add('git-placeholder-text');
+        element.innerHTML = `<div class="placeholder-text-content">
+          <span class="placeholder-icon">${line.highlight === 'empty-space-added' ? '+' : '−'}</span>
+          <span class="placeholder-text">${escapeHtml(line.placeholderText?.substring(0, 50) || '')}${line.placeholderText?.length > 50 ? '...' : ''}</span>
+        </div>`;
+      }
+      
+      if (line.highlight === 'empty-space-added') {
+        element.classList.add('git-placeholder-added');
+      } else if (line.highlight === 'empty-space-removed') {
+        element.classList.add('git-placeholder-removed');
       }
     }
-    
-    // Apply highlighting classes
-    switch (line.highlight) {
-      case 'added':
-        element.classList.add('git-line-added');
-        if (line.isTable) {
-          element.classList.add('git-table-added');
-        } else if (line.isImage) {
-          element.classList.add('git-image-added');
-        }
-        if (line.processedHtml) {
-          element.innerHTML = line.processedHtml;
-        }
-        break;
-      case 'removed':
-        element.classList.add('git-line-removed');
-        if (line.isTable) {
-          element.classList.add('git-table-removed');
-        } else if (line.isImage) {
-          element.classList.add('git-image-removed');
-        }
-        if (line.processedHtml) {
-          element.innerHTML = line.processedHtml;
-        }
-        break;
-      case 'modified':
-        element.classList.add('git-line-modified');
-        if (line.isTable) {
-          element.classList.add('git-table-modified');
-        } else if (line.isImage) {
-          element.classList.add('git-image-modified');
-        }
-        if (line.processedHtml) {
-          element.innerHTML = line.processedHtml;
-        }
-        break;
-      case 'empty-space-added':
-        element.classList.add('git-line-placeholder', 'placeholder-added');
-        if (line.isTable) {
-          element.innerHTML = `<div class="placeholder-content placeholder-added-content">
-            <span class="placeholder-icon">📊</span>
-            <div class="placeholder-details">
-              <div class="placeholder-title">Table added in modified document</div>
-              <div class="placeholder-preview">Table with content...</div>
-            </div>
-          </div>`;
-          element.style.minHeight = '120px';
-        } else if (line.isImage) {
-          element.innerHTML = `<div class="placeholder-content placeholder-added-content">
-            <span class="placeholder-icon">🖼️</span>
-            <div class="placeholder-details">
-              <div class="placeholder-title">Image added in modified document</div>
-              <div class="placeholder-preview">Image content...</div>
-            </div>
-          </div>`;
-          element.style.minHeight = '180px';
-        } else {
-          element.innerHTML = `<div class="placeholder-content placeholder-added-content">
-            <span class="placeholder-icon">+</span>
-            <div class="placeholder-details">
-              <div class="placeholder-title">Content added in modified document</div>
-              <div class="placeholder-preview">${escapeHtml(line.placeholderText?.substring(0, 80) || '')}${line.placeholderText?.length > 80 ? '...' : ''}</div>
-            </div>
-          </div>`;
-          element.style.minHeight = '2.5em';
-        }
-        break;
-      case 'empty-space-removed':
-        element.classList.add('git-line-placeholder', 'placeholder-removed');
-        if (line.isTable) {
-          element.innerHTML = `<div class="placeholder-content placeholder-removed-content">
-            <span class="placeholder-icon">📊</span>
-            <div class="placeholder-details">
-              <div class="placeholder-title">Table removed from original document</div>
-              <div class="placeholder-preview">Table with content...</div>
-            </div>
-          </div>`;
-          element.style.minHeight = '120px';
-        } else if (line.isImage) {
-          element.innerHTML = `<div class="placeholder-content placeholder-removed-content">
-            <span class="placeholder-icon">🖼️</span>
-            <div class="placeholder-details">
-              <div class="placeholder-title">Image removed from original document</div>
-              <div class="placeholder-preview">Image content...</div>
-            </div>
-          </div>`;
-          element.style.minHeight = '180px';
-        } else {
-          element.innerHTML = `<div class="placeholder-content placeholder-removed-content">
-            <span class="placeholder-icon">−</span>
-            <div class="placeholder-details">
-              <div class="placeholder-title">Content removed from original document</div>
-              <div class="placeholder-preview">${escapeHtml(line.placeholderText?.substring(0, 80) || '')}${line.placeholderText?.length > 80 ? '...' : ''}</div>
-            </div>
-          </div>`;
-          element.style.minHeight = '2.5em';
-        }
-        break;
-      default:
-        if (line.processedHtml) {
-          element.innerHTML = line.processedHtml;
-        }
-    }
-    
-    container.appendChild(element);
   });
+  
+  // Rebuild container with processed elements while preserving order
+  const newContainer = document.createElement('div');
+  newContainer.className = container.className;
+  
+  processedLines.forEach(line => {
+    if (line.element) {
+      newContainer.appendChild(line.element);
+    } else {
+      // Create placeholder element
+      const placeholder = createPlaceholderElement(line);
+      newContainer.appendChild(placeholder);
+    }
+  });
+  
+  container.innerHTML = newContainer.innerHTML;
+};
+
+// Create placeholder element that maintains original spacing
+const createPlaceholderElement = (line) => {
+  const element = document.createElement('div');
+  element.classList.add('git-placeholder');
+  
+  if (line.isTable) {
+    element.classList.add('git-placeholder-table');
+    element.innerHTML = `<div class="placeholder-table-content">
+      <span class="placeholder-icon">${line.highlight === 'empty-space-added' ? '+' : '−'}</span>
+      <span class="placeholder-text">Table ${line.highlight === 'empty-space-added' ? 'added' : 'removed'}</span>
+    </div>`;
+  } else if (line.isImage) {
+    element.classList.add('git-placeholder-image');
+    element.innerHTML = `<div class="placeholder-image-content">
+      <span class="placeholder-icon">${line.highlight === 'empty-space-added' ? '+' : '−'}</span>
+      <span class="placeholder-text">Image ${line.highlight === 'empty-space-added' ? 'added' : 'removed'}</span>
+    </div>`;
+  } else {
+    element.classList.add('git-placeholder-text');
+    const previewText = line.placeholderText?.substring(0, 50) || '';
+    element.innerHTML = `<div class="placeholder-text-content">
+      <span class="placeholder-icon">${line.highlight === 'empty-space-added' ? '+' : '−'}</span>
+      <span class="placeholder-text">${escapeHtml(previewText)}${line.placeholderText?.length > 50 ? '...' : ''}</span>
+    </div>`;
+  }
+  
+  if (line.highlight === 'empty-space-added') {
+    element.classList.add('git-placeholder-added');
+  } else if (line.highlight === 'empty-space-removed') {
+    element.classList.add('git-placeholder-removed');
+  }
+  
+  return element;
 };
 
 // Perform word-level diff between two HTML contents
@@ -456,32 +454,34 @@ const performWordLevelDiff = (leftHtml, rightHtml) => {
 
 // Apply diff highlighting for mutual comparison
 const applyDiffHighlighting = (diffs, side) => {
-  let html = '';
+  let result = '';
   
   diffs.forEach(diff => {
     const [operation, text] = diff;
     
     if (operation === 0) {
       // Unchanged text
-      html += escapeHtml(text);
+      result += escapeHtml(text);
     } else if (operation === 1) {
       // Added text
       if (side === 'right') {
-        html += `<span class="git-inline-added">${escapeHtml(text)}</span>`;
+        result += `<span class="git-inline-added">${escapeHtml(text)}</span>`;
       } else {
-        html += `<span class="git-inline-placeholder" style="color: #22c55e; font-style: italic; opacity: 0.7; background: #f0fdf4; padding: 1px 3px; border-radius: 2px;">[+${escapeHtml(text)}]</span>`;
+        // Show placeholder for added content in left document
+        result += `<span class="git-inline-placeholder" style="background: rgba(34, 197, 94, 0.1); color: #22c55e; font-style: italic; padding: 1px 3px; border-radius: 2px; font-size: 0.9em;">[+${escapeHtml(text.substring(0, 20))}${text.length > 20 ? '...' : ''}]</span>`;
       }
     } else if (operation === -1) {
       // Removed text
       if (side === 'left') {
-        html += `<span class="git-inline-removed">${escapeHtml(text)}</span>`;
+        result += `<span class="git-inline-removed">${escapeHtml(text)}</span>`;
       } else {
-        html += `<span class="git-inline-placeholder" style="color: #ef4444; font-style: italic; opacity: 0.7; background: #fef2f2; padding: 1px 3px; border-radius: 2px;">[-${escapeHtml(text)}]</span>`;
+        // Show placeholder for removed content in right document
+        result += `<span class="git-inline-placeholder" style="background: rgba(239, 68, 68, 0.1); color: #ef4444; font-style: italic; padding: 1px 3px; border-radius: 2px; font-size: 0.9em;">[-${escapeHtml(text.substring(0, 20))}${text.length > 20 ? '...' : ''}]</span>`;
       }
     }
   });
   
-  return html;
+  return result;
 };
 
 // Text similarity and equality functions
